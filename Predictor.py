@@ -1,6 +1,8 @@
 import zmq
 import zmqhelpers
 import click
+import pandas as pd
+import numpy as np
 
 
 """
@@ -18,20 +20,21 @@ context = zmq.Context()
 def main(subscribing_port: int, host: str):
     subscriber = context.socket(zmq.SUB)
     subscriber.setsockopt_string(zmq.SUBSCRIBE, "")
-
     subscriber.connect(f"tcp://{host}:{subscribing_port}")
 
     running = True
     model = None
-
+    centroids = []
+    clusters = None
     while running:
         message_type = subscriber.recv()
         if message_type == zmqhelpers.MODEL:
-            print('Got model')
-            try:
-                model = zmqhelpers.recv_zipped_pickle(subscriber)
-            except Exception as e:
-                print(f"Failed to parse model\n.{e}")
+            print("Got model")
+            model = zmqhelpers.recv_zipped_pickle(subscriber)
+            centroids.append(model.cluster_centers_)
+            print(model.cluster_centers_)
+            clusters = model.cluster_centers_.shape[0]
+
 
         elif message_type == zmqhelpers.ARRAY:
             data = zmqhelpers.recv_array(subscriber)
@@ -42,6 +45,9 @@ def main(subscribing_port: int, host: str):
                     print(f"Failed to predict on data\n.{e}")
 
         elif message_type == zmqhelpers.TERMINATE:
+            centroid_data = pd.DataFrame(np.concatenate(centroids), columns=['x', 'y'])
+            centroid_data['iteration'] = [int(i/clusters) for i in range(centroid_data.shape[0])]
+            centroid_data.to_csv('centroids.csv')
             running = False
 
     return

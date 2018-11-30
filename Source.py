@@ -26,8 +26,7 @@ class Walker:
 @click.option('--duration', type=int, default=10, help='Time duration of simulated source.')
 @click.option('--host', type=str, default='localhost', help='Host of URL')
 @click.option('--port', type=int, default=5000, help='Port of URL')
-@click.option('--output_file', type=str, default=None, help='Output random walks to a CSV.')
-def main(steps:int, duration:int, host:str, port:int, output_file:str):
+def main(steps:int, duration:int, host:str, port:int):
     # Three walkers
     walker1 = Walker(1.2, 0.3)
     walker2 = Walker(0.05, 0.05)
@@ -53,15 +52,9 @@ def main(steps:int, duration:int, host:str, port:int, output_file:str):
         ts.append(step/steps)
         zmqhelpers.send_array(publisher, array)
         time.sleep(sleep_interval)
-    publisher.send(zmqhelpers.TERMINATE)
 
-    if output_file is not None:
-        df = pd.DataFrame(np.array(data))
-        df.columns = ['x', 'y']
-        df['walkers'] = walkers
-        df['iteration'] = [int(i/2000) for i in range(steps)]
-        df['time'] = ts
-        df.to_csv(output_file)
+    time.sleep(0.5)
+    publisher.send(zmqhelpers.TERMINATE)
 
     return
 

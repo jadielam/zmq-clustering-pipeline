@@ -6,6 +6,8 @@ from datetime import datetime
 import click
 import zmq
 import pandas as pd
+from multiprocessing import Pool, Process
+import sys, gc
 
 
 """
@@ -15,18 +17,15 @@ sending out the serialed model to a server.
 """
 
 
+
 @click.command()
 @click.option('--subscriber_port', type=int, help="Subscribing port.")
 @click.option('--publisher_port', type=int, help="Publishing port.")
 @click.option('--host', type=str, default='localhost', help="Host to use for communication.")
-@click.option('--training_interval', type=int, help="Training interval in seconds.")
 @click.option('--clusters', type = int, default = 3, help='Number of clusters to learn.')
-@click.option('--max_buffer_size', type=int, default = 8192, help="Max buffer size of data buffer")
-@click.option('--features', type=int, default=2, help='Number of recieved features')
-@click.option('--use_fresh_data', type = bool, default = True, help='Use only fresh data in new training interval.')
-@click.option('--output_file', type = str, default = None, help='Output model parameters to a CSV.')
-def main(subscriber_port: int, publisher_port: int, host: str, training_interval: int, clusters: int, max_buffer_size: int, features: int, use_fresh_data: bool, output_file:str):
+def main(subscriber_port: int, publisher_port: int, host: str, clusters: int):
     context = zmq.Context()
+
     subscriber = context.socket(zmq.SUB)
     subscriber.setsockopt_string(zmq.SUBSCRIBE, "")
     subscriber.connect(f"tcp://{host}:{subscriber_port}")
@@ -34,49 +33,33 @@ def main(subscriber_port: int, publisher_port: int, host: str, training_interval
     publisher = context.socket(zmq.PUB)
     publisher.bind(f"tcp://*:{publisher_port}")
 
-    data_buffer = np.zeros((max_buffer_size, features))
-    data_index = 0
-
-    interval = timedelta(seconds = training_interval)
-    next_timestamp = datetime.now() + interval
-
-    running = True
     centroids = []
-
+    iteration = []
+    iter = 0
+    running = True
     while running:
         message_type = subscriber.recv()
         if message_type == zmqhelpers.ARRAY:
-            data = zmqhelpers.recv_array(subscriber)
-            try:
-                data_buffer[data_index % max_buffer_size, :] = data
-                data_index += 1
-            except Exception as e:
-                print(e)
+            array = zmqhelpers.recv_array(subscriber)
+            clustering_model = KMeans(n_clusters=clusters).fit(array)
+            # Send out the model
+            publisher.send(zmqhelpers.MODEL)
+            zmqhelpers.send_zipped_pickle(publisher, clustering_model)
+            centroids.append(clustering_model.cluster_centers_)
+            iteration.extend([iter] * clustering_model.cluster_centers_.shape[0])
+            iter += 1
 
         if message_type == zmqhelpers.TERMINATE:
-            if output_file is not None:
-                df = pd.DataFrame(np.concatenate(centroids), columns=['x', 'y'])
-                df['iteration'] = [int(i/clusters) for i in range(df.shape[0])]
-                df.to_csv('centroids.csv')
+            centroid_data = pd.DataFrame(np.concatenate(centroids), columns=['x', 'y'])
+            centroid_data['iteration'] = iteration
+            centroid_data.to_csv('centroids.csv')
             publisher.send(zmqhelpers.TERMINATE)
             running = False
 
-        if datetime.now() >= next_timestamp and data_index > 0:
-            next_timestamp = datetime.now() + interval
-            training_data = np.array(data_buffer[:data_index], dtype='float')
-            if data_index < max_buffer_size:
-                training_data = data_buffer
-            if use_fresh_data:
-                data_index = 0
-
-            clustering_model = KMeans(n_clusters=clusters).fit(training_data)
-            centroids.append(clustering_model.cluster_centers_)
-            publisher.send(zmqhelpers.MODEL)
-            zmqhelpers.send_zipped_pickle(publisher, clustering_model)
+    return
 
 
 if __name__ == "__main__":
     main()
-
 
 
