@@ -29,10 +29,8 @@ def main(subscribing_port: int, host: str):
     while running:
         message_type = subscriber.recv()
         if message_type == zmqhelpers.MODEL:
-            print("Got model")
             model = zmqhelpers.recv_zipped_pickle(subscriber)
             centroids.append(model.cluster_centers_)
-            print(model.cluster_centers_)
             clusters = model.cluster_centers_.shape[0]
 
 

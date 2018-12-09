@@ -7,6 +7,7 @@ pip install -r requirements.txt
 ```
 in a fresh environment.
 ## How to run Demo
+The demo takes approximately ~10 seconds to complete.
 ```
 chmod +x demo.sh
 ./demo.sh
