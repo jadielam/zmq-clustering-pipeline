@@ -11,10 +11,8 @@ import pandas as pd
 """
 Preprocess.py
 This node recieves data and trains a K-Means learner on a regular interval,
-sending out the serialed model to a server.
+sending out the serialized model to a server.
 """
-
-
 
 
 @click.command()
