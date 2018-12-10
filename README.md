@@ -1,5 +1,5 @@
 # Online Clustering Pipeline
-This is the source code for the following post <>. 
+This is the source code for the following post <https://medium.com/tagto/a-real-time-clustering-pipeline-using-zmq-8f62ffc85a51>. 
 ## Installation
 Requires Python >= 3.6, please run
 ```
